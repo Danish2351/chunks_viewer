@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>chunk audit viewer</title>
+<style>
+  :root{--bg:#f6f7f4;--card:#fff;--line:#dde1da;--ink:#1b211e;--muted:#6f7a74;--accent:#1f6f5f;--accent-soft:#e1efea;--mono:ui-monospace,Menlo,Consolas,monospace;--sans:system-ui,-apple-system,"Segoe UI",sans-serif}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px}
+  header{padding:14px 24px;border-bottom:1px solid var(--line);background:var(--card);display:flex;flex-wrap:wrap;gap:12px 28px;align-items:baseline}
+  header h1{font-size:17px;margin:0}
+  header h1 code{font-family:var(--mono);background:var(--accent-soft);color:var(--accent);padding:1px 6px;border-radius:3px}
+  .stat{font-size:13px;color:var(--muted)}.stat b{color:var(--ink);font-size:15px}
+  .bar{padding:10px 24px 4px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-bottom:0}
+  .bar.last{padding-bottom:12px;border-bottom:1px solid var(--line)}
+  label.ctl{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+  input,select,button{font:inherit;padding:6px 10px;border:1px solid var(--line);border-radius:4px;background:var(--card);color:var(--ink);max-width:340px}
+  input[type=search]{min-width:220px}
+  #section{width:110px}
+  button{cursor:pointer}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button:disabled{opacity:.4;cursor:default}
+  .pager{margin-left:auto;display:flex;gap:8px;align-items:center;color:var(--muted)}
+  main{padding:16px 24px}
+  .tw{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:6px}
+  table{border-collapse:collapse;width:100%}
+  th{position:sticky;top:0;background:#eef1ec;text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr.row{cursor:pointer}tr.row:hover td{background:#f4f7f3}
+  tr.open td{background:var(--accent-soft)}
+  td.num{font-family:var(--mono);font-size:12px;white-space:nowrap;text-align:right}
+  td.mono{font-family:var(--mono);font-size:12px;white-space:nowrap}
+  .pill{display:inline-block;font-family:var(--mono);font-size:11px;padding:1px 7px;border-radius:999px;background:#e6e9e3;color:#444;margin:0 2px 2px 0}
+  .pill.structured{background:var(--accent-soft);color:var(--accent)}
+  .pill.sequential{background:#eee5cf;color:#7a5a12}
+  .content{max-width:620px;color:#333;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .sec{max-width:260px;font-size:13px}.sec small{display:block;color:var(--muted)}
+  .emb{font-family:var(--mono);font-size:11px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  tr.detail td{background:#fbfcfa;padding:14px 18px}
+  .detail-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:18px}
+  @media(max-width:900px){.detail-grid{grid-template-columns:1fr}}
+  .detail h4{margin:0 0 6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .facts{font-size:12px;color:var(--muted);margin:0 0 10px}
+  pre{margin:0;white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:12px;line-height:1.5;background:var(--card);border:1px solid var(--line);border-radius:4px;padding:10px;max-height:420px;overflow:auto}
+  .full{white-space:pre-wrap;line-height:1.55;background:var(--card);border:1px solid var(--line);border-radius:4px;padding:12px;max-height:420px;overflow:auto}
+  .sim{margin-top:14px}.sim table{font-size:13px}.sim td{padding:6px 8px}
+  .muted{color:var(--muted)}
+  .err{color:#a33;padding:20px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<header>
+  <h1><code id="dbname">…</code> — chunk audit viewer</h1>
+  <span class="stat" id="stats">loading…</span>
+</header>
+<div class="bar">
+  <label class="ctl">connection <select id="conn"></select></label>
+  <label class="ctl">family <select id="family"><option value="">all families</option></select></label>
+  <label class="ctl">document <select id="doc"><option value="">all documents</option></select></label>
+  <label class="ctl">order <select id="sort">
+    <option value="doc">document → chunk_index</option>
+    <option value="index">chunk_index</option>
+    <option value="section">family → section №</option>
+    <option value="created_desc">newest first</option>
+    <option value="created_asc">oldest first</option>
+    <option value="id">row id</option>
+  </select></label>
+</div>
+<div class="bar last">
+  <input type="search" id="q" placeholder="search chunk text…">
+  <input type="search" id="name" placeholder="document name contains…">
+  <input type="search" id="section" placeholder="section №">
+  <select id="type"><option value="">all chunk types</option><option value="structured">structured</option><option value="sequential">sequential</option></select>
+  <select id="size"><option>25</option><option>50</option><option>100</option><option>200</option></select>
+  <button class="primary" id="go">Apply</button>
+  <button id="clear">Clear</button>
+  <div class="pager"><button id="prev">‹ prev</button><span id="pageinfo"></span><button id="next">next ›</button></div>
+</div>
+<main>
+  <div class="tw"><table>
+    <thead><tr><th>id</th><th>document</th><th>#</th><th>type</th><th>section</th><th>content</th><th>embedding</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+let page = 1, total = 0, openId = null;
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const conn = () => $("#conn").value;
+const api = (path, extra = {}) =>
+  fetch(path + "?" + new URLSearchParams({ conn: conn(), ...extra })).then(r => r.json());
+
+async function loadConnections(){
+  const list = await (await fetch("/api/connections")).json();
+  $("#conn").innerHTML = list.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join("");
+}
+
+async function loadStats(){
+  $("#dbname").textContent = $("#conn").selectedOptions[0]?.textContent.split("·")[1]?.trim().split(" ")[0] || conn();
+  const s = await api("/api/stats");
+  if (s.error) { $("#stats").innerHTML = `<span class="err">${esc(s.error)}</span>`; return; }
+  const d = t => t ? new Date(t).toISOString().slice(0,10) : "—";
+  $("#stats").innerHTML =
+    `<b>${s.total.toLocaleString()}</b> chunks · <b>${s.docs.toLocaleString()}</b> documents · ` +
+    `<b>${s.law_families.toLocaleString()}</b> law families · ` +
+    `structured <b>${s.structured.toLocaleString()}</b> / sequential <b>${s.sequential.toLocaleString()}</b> · ` +
+    `model <b>${esc(s.model)}</b> (${s.dim}-d) · ingested ${d(s.oldest)} → <b>${d(s.newest)}</b>`;
+}
+
+async function loadFamilies(){
+  const fams = await api("/api/families");
+  if (fams.error) { $("#family").innerHTML = '<option value="">all families</option>'; return; }
+  const cur = $("#family").value;
+  $("#family").innerHTML = '<option value="">all families</option>' + fams.map(f =>
+    `<option value="${esc(f.family ?? "")}">${esc(f.family ?? "(no family)")} — ${f.chunks}c/${f.docs}d</option>`).join("");
+  $("#family").value = cur;
+  if ($("#family").selectedIndex < 0) $("#family").value = "";
+}
+
+async function loadDocs(){
+  const r = await api("/api/docs", { family: $("#family").value, name: $("#name").value });
+  if (r.error) { $("#doc").innerHTML = '<option value="">all documents</option>'; return; }
+  const cur = $("#doc").value;
+  $("#doc").innerHTML = '<option value="">all documents</option>' + r.rows.map(d =>
+    `<option value="${esc(d.doc_id)}">${esc(d.name || d.doc_id)} (${d.chunks})</option>`).join("") +
+    (r.truncated ? '<option value="" disabled>… list truncated at 1000 — narrow by family or name</option>' : "");
+  $("#doc").value = cur;
+  if ($("#doc").selectedIndex < 0) $("#doc").value = "";
+}
+
+async function load(){
+  const r = await api("/api/documents", {
+    page, size: $("#size").value, sort: $("#sort").value, q: $("#q").value,
+    name: $("#name").value, family: $("#family").value, section: $("#section").value,
+    type: $("#type").value, doc: $("#doc").value,
+  });
+  if (r.error) { $("#rows").innerHTML = `<tr><td colspan="7" class="err">${esc(r.error)}</td></tr>`; $("#pageinfo").textContent = ""; return; }
+  total = r.total; openId = null;
+  const pages = Math.max(1, Math.ceil(total / r.size));
+  $("#pageinfo").textContent = `${total.toLocaleString()} rows · page ${page} / ${pages}`;
+  $("#prev").disabled = page <= 1; $("#next").disabled = page >= pages;
+  $("#rows").innerHTML = r.rows.map(x => `
+    <tr class="row" data-id="${x.id}">
+      <td class="num">${x.id}</td>
+      <td class="sec">${esc(x.name || x.doc_id)}<small>${esc(x.law_family || "")}</small></td>
+      <td class="num">${x.chunk_index}</td>
+      <td><span class="pill ${esc(x.chunk_type)}">${esc(x.chunk_type)}</span>${x.source_type ? `<br><span class="pill">${esc(x.source_type)}</span>` : ""}</td>
+      <td class="sec">${x.section_number ? `<b>§ ${esc(x.section_number)}</b>` : '<span class="muted">—</span>'}<small>${esc(x.section_title || "")}</small></td>
+      <td><div class="content">${esc(x.content)}</div></td>
+      <td><div class="emb" title="${esc(x.embedding_preview)}">${esc(x.embedding_preview)}…</div></td>
+    </tr>`).join("");
+  window.__rows = Object.fromEntries(r.rows.map(x => [x.id, x]));
+}
+
+$("#rows").addEventListener("click", async e => {
+  const tr = e.target.closest("tr.row"); if (!tr) return;
+  const id = +tr.dataset.id;
+  document.querySelectorAll("tr.detail").forEach(d => d.remove());
+  document.querySelectorAll("tr.open").forEach(d => d.classList.remove("open"));
+  if (openId === id) { openId = null; return; }
+  openId = id; tr.classList.add("open");
+  const x = window.__rows[id];
+  const facts = [
+    x.law_doc_type && `law_doc_type: <b>${esc(x.law_doc_type)}</b>`,
+    x.is_latest_version != null && `is_latest_version: <b>${esc(x.is_latest_version)}</b>`,
+    x.created_at && `created: <b>${esc(String(x.created_at).slice(0,19).replace("T"," "))}</b>`,
+    x.heading_path && `path: ${esc(x.heading_path)}`,
+  ].filter(Boolean).join(" · ");
+  const d = document.createElement("tr"); d.className = "detail";
+  d.innerHTML = `<td colspan="7"><div class="detail detail-grid">
+    <div><h4>content · ${esc(x.chunk_id || "")}</h4>
+      ${facts ? `<p class="facts">${facts}</p>` : ""}
+      <div class="full">${esc(x.content)}</div>
+      <div class="sim"><h4>nearest chunks by cosine similarity</h4><div id="sim-${id}" class="muted">loading…</div></div></div>
+    <div><h4>meta (jsonb)</h4><pre>${esc(x.meta)}</pre>
+      <h4 style="margin-top:12px">embedding</h4><pre>${esc(x.embedding_preview)}… (${x.embedding_dim} dims, ${esc(x.embedding_model)})</pre></div>
+  </div></td>`;
+  tr.after(d);
+  const sim = await api("/api/similar", { id });
+  if (sim.error) { $("#sim-" + id).textContent = sim.error; return; }
+  $("#sim-" + id).innerHTML = `<table>${sim.map(s => `<tr><td class="num">${s.similarity}</td><td class="mono">#${s.id}</td><td class="sec">${esc(s.law_family||"")}${s.section_number? " § "+esc(s.section_number):""}</td><td>${esc(s.content)}…</td></tr>`).join("")}</table>`;
+});
+
+function apply(){ page = 1; load(); }
+$("#go").onclick = apply;
+["#q", "#section"].forEach(s => $(s).addEventListener("keydown", e => { if (e.key === "Enter") apply(); }));
+$("#name").addEventListener("keydown", e => { if (e.key === "Enter") { loadDocs(); apply(); } });
+$("#family").onchange = () => { $("#doc").value = ""; loadDocs(); apply(); };
+$("#doc").onchange = apply;
+$("#sort").onchange = apply;
+$("#type").onchange = apply;
+async function reloadAll() {
+  page = 1;
+  $("#doc").value = "";
+  await loadStats();
+  await loadFamilies();
+  await loadDocs();
+  await load();
+}
+$("#conn").onchange = reloadAll;
+$("#clear").onclick = () => {
+  ["#q", "#name", "#section"].forEach(s => $(s).value = "");
+  ["#family", "#doc", "#type"].forEach(s => $(s).value = "");
+  $("#sort").value = "doc"; loadDocs(); apply();
+};
+$("#prev").onclick = () => { page--; load(); };
+$("#next").onclick = () => { page++; load(); };
+
+(async () => { await loadConnections(); await reloadAll(); })();
+</script>
+</body>
+</html>
